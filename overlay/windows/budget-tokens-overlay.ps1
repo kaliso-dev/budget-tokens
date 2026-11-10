@@ -1,7 +1,7 @@
 ﻿# budget-tokens : overlay Windows
 #
-# Affiche, au-dessus des fenêtres, la même barre que le mod budget-tokens dans
-# Claude Code, tant que Claude Desktop est ouvert. La ligne est calculée par le
+# Affiche la même barre que le mod budget-tokens dans Claude Code, au-dessus de
+# la fenêtre de Claude Desktop, seulement quand elle est au premier plan. La ligne est calculée par le
 # mod, qui l'écrit dans son fichier sous %USERPROFILE%\.claude\plugins\store\ ;
 # l'overlay ne fait que la dessiner.
 #
@@ -29,8 +29,29 @@ $font = New-Object System.Windows.Media.FontFamily('Segoe UI')
 
 function New-Brush([string]$hex) { return $converter.ConvertFromString($hex) }
 
-function Test-ClaudeDesktop {
-    return [bool](Get-Process -Name 'Claude' -ErrorAction SilentlyContinue)
+Add-Type -Namespace BudgetTokens -Name Native -MemberDefinition @"
+[DllImport("user32.dll")] public static extern IntPtr GetForegroundWindow();
+[DllImport("user32.dll")] public static extern uint GetWindowThreadProcessId(IntPtr hWnd, out uint processId);
+"@
+
+# $true : Claude au premier plan ; $false : une autre fenêtre ; $null : ne rien changer.
+$script:lastWindow = [IntPtr]::Zero
+$script:lastAnswer = $null
+function Test-ClaudeInFront {
+    $handle = [BudgetTokens.Native]::GetForegroundWindow()
+    if ($handle -eq [IntPtr]::Zero) { return $null }
+    if ($handle -eq $script:lastWindow) { return $script:lastAnswer }
+    $owner = [uint32]0
+    [void][BudgetTokens.Native]::GetWindowThreadProcessId($handle, [ref]$owner)
+    $answer = $null
+    if ($owner -ne $PID) {
+        # L'overlay lui-même (on le déplace, son menu est ouvert) ne compte pas.
+        $process = Get-Process -Id $owner -ErrorAction SilentlyContinue
+        $answer = [bool]($process -and $process.ProcessName -eq 'claude')
+    }
+    $script:lastWindow = $handle
+    $script:lastAnswer = $answer
+    return $answer
 }
 
 # La ligne la plus récente parmi les fichiers du mod (une copie par installation).
@@ -197,6 +218,7 @@ $menu = New-Object System.Windows.Controls.ContextMenu
 $quit = New-Object System.Windows.Controls.MenuItem
 $quit.Header = 'Quitter budget-tokens'
 $quit.Add_Click({
+    $focusTimer.Stop()
     $timer.Stop()
     $window.Close()
     $window.Dispatcher.InvokeShutdown()
@@ -205,25 +227,40 @@ $quit.Add_Click({
 $border.ContextMenu = $menu
 
 $script:lastKey = $null
-$timer = New-Object System.Windows.Threading.DispatcherTimer
-$timer.Interval = [TimeSpan]::FromSeconds(3)
-$timer.Add_Tick({
+function Update-Line {
+    $now = [double][DateTimeOffset]::UtcNow.ToUnixTimeMilliseconds()
+    $display = Read-Display
+    $key = [string]($display | ConvertTo-Json -Depth 8 -Compress) + '|' + [Math]::Floor($now / 60000)
+    if ($key -ne $script:lastKey) {
+        $script:lastKey = $key
+        Show-Line $display $now
+    }
+}
+
+# La fenêtre au premier plan, relue souvent pour suivre les changements de fenêtre.
+$focusTimer = New-Object System.Windows.Threading.DispatcherTimer
+$focusTimer.Interval = [TimeSpan]::FromMilliseconds(300)
+$focusTimer.Add_Tick({
     try {
-        if (Test-ClaudeDesktop) {
-            $now = [double][DateTimeOffset]::UtcNow.ToUnixTimeMilliseconds()
-            $display = Read-Display
-            $key = [string]($display | ConvertTo-Json -Depth 8 -Compress) + '|' + [Math]::Floor($now / 60000)
-            if ($key -ne $script:lastKey) {
-                $script:lastKey = $key
-                Show-Line $display $now
-            }
-            if (-not $window.IsVisible) { $window.Show() }
-        } elseif ($window.IsVisible) {
+        $inFront = Test-ClaudeInFront
+        if ($inFront -eq $true -and -not $window.IsVisible) {
+            Update-Line
+            $window.Show()
+            $window.Topmost = $true
+        } elseif ($inFront -eq $false -and $window.IsVisible) {
             $window.Hide()
         }
     } catch { }
 })
 
+# Le contenu, relu toutes les 3 secondes tant que l'overlay est visible.
+$timer = New-Object System.Windows.Threading.DispatcherTimer
+$timer.Interval = [TimeSpan]::FromSeconds(3)
+$timer.Add_Tick({
+    try { if ($window.IsVisible) { Update-Line } } catch { }
+})
+
+$focusTimer.Start()
 $timer.Start()
 [System.Windows.Threading.Dispatcher]::Run()
 $mutex.ReleaseMutex()

@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 """Overlay budget-tokens pour Linux (X11).
 
-Affiche, au-dessus de toutes les fenêtres, la même barre que le mod
-budget-tokens dans Claude Code, tant que Claude Desktop est ouvert. La ligne
+Affiche la même barre que le mod budget-tokens dans Claude Code, au-dessus de
+la fenêtre de Claude Desktop, seulement quand elle est au premier plan. La ligne
 est calculée par le mod, qui l'écrit dans son fichier sous
 ~/.claude/plugins/store/ ; l'overlay ne fait que la dessiner.
 
@@ -13,6 +13,7 @@ import fcntl
 import glob
 import json
 import os
+import subprocess
 import sys
 import time
 import tkinter as tk
@@ -24,6 +25,8 @@ POSITION_FILE = os.path.expanduser('~/.config/budget-tokens-overlay.json')
 LOCK_FILE = os.path.expanduser('~/.cache/budget-tokens-overlay.lock')
 APP_PATH_HINT = '/claude-desktop/'
 REFRESH_MS = 3000
+# La fenêtre au premier plan est relue souvent, pour suivre les changements de fenêtre.
+FOCUS_MS = 300
 # Au-delà, le mod ne tourne plus : aucune session Code n'est ouverte.
 MOD_SILENT_AFTER = 120
 
@@ -49,18 +52,70 @@ def single_instance():
     return handle
 
 
-def claude_desktop_running():
-    for pid in os.listdir('/proc'):
-        if not pid.isdigit():
-            continue
+def is_claude_process(pid):
+    try:
+        with open(f'/proc/{pid}/cmdline', 'rb') as f:
+            exe = f.read().split(b'\0', 1)[0].decode('utf-8', 'replace')
+    except OSError:
+        return False
+    return APP_PATH_HINT in exe or os.path.basename(exe) == 'claude-desktop'
+
+
+class ActiveWindow:
+    """Le processus de la fenêtre au premier plan (_NET_ACTIVE_WINDOW, X11).
+
+    Par python-xlib quand il est là, sinon par la commande xprop.
+    """
+
+    def __init__(self):
+        self.xlib = None
+        self.last_window = None
+        self.last_pid = None
         try:
-            with open(f'/proc/{pid}/cmdline', 'rb') as f:
-                exe = f.read().split(b'\0', 1)[0].decode('utf-8', 'replace')
-        except OSError:
-            continue
-        if APP_PATH_HINT in exe or os.path.basename(exe) == 'claude-desktop':
-            return True
-    return False
+            from Xlib import X, display as xdisplay
+            self.X = X
+            self.xlib = xdisplay.Display()
+            self.root = self.xlib.screen().root
+            self.active_atom = self.xlib.intern_atom('_NET_ACTIVE_WINDOW')
+            self.pid_atom = self.xlib.intern_atom('_NET_WM_PID')
+        except Exception:
+            self.xlib = None
+
+    def window(self):
+        if self.xlib is not None:
+            prop = self.root.get_full_property(self.active_atom, self.X.AnyPropertyType)
+            return int(prop.value[0]) if prop and len(prop.value) else None
+        out = subprocess.run(['xprop', '-root', '_NET_ACTIVE_WINDOW'], capture_output=True, text=True, timeout=2).stdout
+        word = out.strip().split()[-1] if out.strip() else ''
+        return int(word, 16) if word.startswith('0x') else None
+
+    def pid_of(self, window):
+        if self.xlib is not None:
+            prop = self.xlib.create_resource_object('window', window).get_full_property(self.pid_atom, self.X.AnyPropertyType)
+            return int(prop.value[0]) if prop and len(prop.value) else None
+        out = subprocess.run(['xprop', '-id', hex(window), '_NET_WM_PID'], capture_output=True, text=True, timeout=2).stdout
+        word = out.strip().split()[-1] if out.strip() else ''
+        return int(word) if word.isdigit() else None
+
+    def pid(self):
+        window = self.window()
+        if not window:
+            return None
+        if window != self.last_window:
+            self.last_window = window
+            self.last_pid = self.pid_of(window)
+        return self.last_pid
+
+
+def claude_in_front(active):
+    """True : Claude au premier plan ; False : une autre fenêtre ; None : ne rien changer."""
+    try:
+        pid = active.pid()
+    except Exception:
+        return None
+    if pid is None or pid == os.getpid():
+        return None  # pas de fenêtre active, ou l'overlay lui-même (on le déplace)
+    return is_claude_process(pid)
 
 
 def read_display():
@@ -201,30 +256,43 @@ class Overlay:
             age = age_label(now - display.get('readingAt', 0) / 1000)
             self.text(f'   relevé {age} · ouvre une session Code pour actualiser', DIM)
 
-    def tick(self):
+    def refresh(self):
+        now = time.time()
+        display = read_display()
+        key = json.dumps(display, sort_keys=True) + str(int(now // 60))
+        if key != self.last:
+            self.last = key
+            self.render(display, now)
+            if not self.placed:
+                self.place()
+
+    def follow_focus(self):
         try:
-            if claude_desktop_running():
-                now = time.time()
-                display = read_display()
-                key = json.dumps(display, sort_keys=True) + str(int(now // 60))
-                if key != self.last:
-                    self.last = key
-                    self.render(display, now)
-                    if not self.placed:
-                        self.place()
-                if not self.visible:
-                    self.root.deiconify()
-                    self.root.attributes('-topmost', True)
-                    self.visible = True
-            elif self.visible:
+            state = claude_in_front(self.active)
+            if state and not self.visible:
+                self.refresh()
+                self.root.deiconify()
+                self.root.attributes('-topmost', True)
+                self.root.lift()
+                self.visible = True
+            elif state is False and self.visible:
                 self.root.withdraw()
                 self.visible = False
+        finally:
+            self.root.after(FOCUS_MS, self.follow_focus)
+
+    def tick(self):
+        try:
+            if self.visible:
+                self.refresh()
         finally:
             self.root.after(REFRESH_MS, self.tick)
 
     def run(self):
+        self.active = ActiveWindow()
         self.root.withdraw()
         self.visible = False
+        self.follow_focus()
         self.tick()
         self.root.mainloop()
 

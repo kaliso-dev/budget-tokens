@@ -79,9 +79,9 @@ du temps entre la veille et aujourd'hui. Le total du jour est alors précédé d
 
 ## Overlay sur le bureau (Windows et Linux)
 
-La même barre, hors de Claude Code : un petit bandeau au-dessus de toutes les
-fenêtres, affiché tant que Claude Desktop est ouvert, y compris quand tu es dans
-l'onglet Chat. Glisse-le pour le déplacer (sa position est retenue) ; clic droit,
+La même barre, hors de Claude Code : un petit bandeau posé sur la fenêtre de
+Claude Desktop, affiché seulement quand elle est au premier plan (onglet Chat
+compris) et caché dès que tu passes à une autre fenêtre. Glisse-le pour le déplacer (sa position est retenue) ; clic droit,
 puis **Quitter**, pour le fermer.
 
 Il dessine la ligne que le mod calcule : il se met à jour toutes les 30 secondes

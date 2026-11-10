@@ -1,5 +1,6 @@
-﻿# Installe l'overlay budget-tokens sous Windows : il s'affiche dès que Claude
-# Desktop est ouvert, et se relance à chaque ouverture de session Windows.
+﻿# Installe l'overlay budget-tokens sous Windows : il s'affiche quand la fenêtre
+# de Claude Desktop est au premier plan, et se relance à chaque ouverture de
+# session Windows.
 #
 #   powershell -ExecutionPolicy Bypass -File install.ps1
 
@@ -32,6 +33,6 @@ Get-CimInstance Win32_Process -Filter "Name = 'powershell.exe'" |
     ForEach-Object { Stop-Process -Id $_.ProcessId -Force -ErrorAction SilentlyContinue }
 Start-Process -FilePath $powershell -ArgumentList $arguments -WindowStyle Hidden
 
-Write-Host "Overlay budget-tokens installé : il s'affiche dès que Claude Desktop est ouvert."
+Write-Host "Overlay budget-tokens installé : il s'affiche quand la fenêtre de Claude Desktop est au premier plan."
 Write-Host "Lancement automatique : $shortcutPath"
 Write-Host "Pour le retirer : powershell -ExecutionPolicy Bypass -File `"$(Join-Path $PSScriptRoot 'uninstall.ps1')`""
