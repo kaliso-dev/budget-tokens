@@ -435,6 +435,38 @@ export const layout = (s: Snapshot, now: number, columns: number) => {
   return { status, showGauge, parts: kept.map(([, runs]) => runs) }
 }
 
+/**
+ * La barre telle que l'overlay du bureau la dessine (Windows, Linux) : la même
+ * ligne que dans Claude Code, déjà calculée, écrite dans le fichier du mod.
+ */
+export type Display = {
+  /** Quand le mod l'a calculée, en ms epoch : l'overlay sait ainsi si le mod tourne encore. */
+  at: number
+  /** Quand le compte a été relevé, en ms epoch. */
+  readingAt: number
+  status: string
+  /** null : pas de couleur (semaine en attente, ou pas de date de reset). */
+  pace: Pace | null
+  gauge: { used: number; expected: number } | null
+  parts: Run[][]
+}
+
+/** Largeur donnée à la ligne de l'overlay : elle a la place, il ne tronque rien d'utile. */
+const OVERLAY_COLUMNS = 150
+
+export const exportLine = (s: Snapshot, now: number): Display => {
+  const line = layout(s, now, OVERLAY_COLUMNS)
+
+  return {
+    at: now,
+    readingAt: s.at,
+    status: line.status,
+    pace: s.hasWindow && !s.isExpired ? s.pace : null,
+    gauge: line.showGauge ? { used: s.weekUsed, expected: s.weekExpected } : null,
+    parts: line.parts,
+  }
+}
+
 /** Le détail en texte, pour la commande /budget-tokens. */
 export const report = (s: Snapshot, now: number) => {
   if (!s.hasWindow) {

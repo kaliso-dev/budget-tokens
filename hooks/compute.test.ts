@@ -1,7 +1,7 @@
 import { expect, test } from 'claude-code/testing'
 
 import type { Reading, Trace } from '../types'
-import { GAUGE, SEP, layout, measure, readingFromCard, readingOf } from './compute'
+import { GAUGE, SEP, exportLine, layout, measure, readingFromCard, readingOf } from './compute'
 
 const H = 3_600_000
 const DAY = 24 * H
@@ -238,4 +238,19 @@ test('la ligne tient toujours sur une seule ligne, quelle que soit la largeur', 
 
   // Étroit : la semaine reste, le reste s'efface.
   expect(layout(s, NOW, 50).parts[0]?.[0]?.text).toBe('Semaine ')
+})
+
+test("l'overlay reçoit exactement la ligne de la barre, déjà calculée", () => {
+  const { snapshot: s } = measure({ ...reading(70), fiveHour: 12 }, null, NOW)
+  const shown = exportLine(s, NOW)
+
+  expect(shown.status).toBe('TROP VITE')
+  expect(shown.pace).toBe('behind')
+  expect(shown.gauge?.used).toBe(70)
+  expect(shown.at).toBe(NOW)
+  expect(shown.readingAt).toBe(NOW)
+  const text = shown.parts.map(runs => runs.map(r => r.text).join('')).join(' | ')
+  expect(text).toContain('Semaine 70')
+  expect(text).toContain('À sec')
+  expect(text).toContain('5 h 12')
 })

@@ -7,6 +7,7 @@ import {
   SEP,
   TICK,
   USAGE_TOOL,
+  exportLine,
   gaugeRuns,
   gaugeSvg,
   layout,
@@ -38,6 +39,8 @@ async function refresh($: EngineInterface, fresh: Reading | null) {
 
   if (isNewer) await $.store.set('reading', reading)
   if (built.trace) await $.store.set('trace', built.trace)
+  // La même ligne, pour l'overlay du bureau qui lit ce fichier.
+  await $.store.set('display', exportLine(built.snapshot, now))
   await update($, snapshot, () => built.snapshot)
 }
 

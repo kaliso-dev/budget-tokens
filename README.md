@@ -77,6 +77,30 @@ début de la journée tombe dans ce trou, la consommation est répartie au prora
 du temps entre la veille et aujourd'hui. Le total du jour est alors précédé de
 `≈`. Le total de la semaine, lui, est toujours exact.
 
+## Overlay sur le bureau (Windows et Linux)
+
+La même barre, hors de Claude Code : un petit bandeau au-dessus de toutes les
+fenêtres, affiché tant que Claude Desktop est ouvert, y compris quand tu es dans
+l'onglet Chat. Glisse-le pour le déplacer (sa position est retenue) ; clic droit,
+puis **Quitter**, pour le fermer.
+
+Il dessine la ligne que le mod calcule : il se met à jour toutes les 30 secondes
+tant qu'**une session de l'onglet Code** est ouverte dans Claude Desktop (elle
+peut rester dans un coin, sans rien faire). Sans session Code ouverte, il
+affiche le dernier relevé et depuis quand il date.
+
+**Windows** — rien à installer, PowerShell et WPF sont fournis avec Windows :
+
+```powershell
+powershell -ExecutionPolicy Bypass -File "$env:USERPROFILE\.claude\plugins\marketplaces\kaliso-dev\overlay\windows\install.ps1"
+```
+
+Il se relance à chaque ouverture de session Windows. Pour le retirer :
+`uninstall.ps1`, dans le même dossier.
+
+**Linux (X11)** — Python 3 avec Tkinter : `sh overlay/linux/install.sh` ; pour
+le retirer, `sh overlay/linux/uninstall.sh`.
+
 ## Utilisation
 
 - La barre s'affiche d'elle-même, au-dessus du prompt.
