@@ -1,0 +1,13 @@
+{
+  "name": "kaliso-dev",
+  "owner": {
+    "name": "kaliso-dev"
+  },
+  "description": "budget-tokens : une barre au-dessus du prompt qui suit le quota hebdomadaire du compte Claude.",
+  "plugins": [
+    {
+      "name": "budget-tokens",
+      "source": "./"
+    }
+  ]
+}
