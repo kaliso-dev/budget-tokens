@@ -86,6 +86,15 @@ function claudeInFront() {
   return bundle === 'com.anthropic.claudefordesktop' || bundle.startsWith('com.anthropic.claude') || name === 'Claude'
 }
 
+// Dans overlay.log (StandardErrorPath du LaunchAgent), une fois par message.
+const loggedErrors = new Set()
+function logError(e) {
+  const message = String(e && e.message || e)
+  if (loggedErrors.has(message)) return
+  loggedErrors.add(message)
+  console.log(new Date().toISOString() + ' ' + message)
+}
+
 // --- Fenêtre ---------------------------------------------------------------
 
 let panel = null
@@ -105,8 +114,8 @@ ObjC.registerSubclass({
   name: 'BTController',
   superclass: 'NSObject',
   methods: {
-    'focusTick:': { types: ['void', ['id']], implementation: function (timer) { try { followFocus() } catch (e) { } } },
-    'refreshTick:': { types: ['void', ['id']], implementation: function (timer) { try { if (panel.isVisible) refresh() } catch (e) { } } },
+    'focusTick:': { types: ['void', ['id']], implementation: function (timer) { try { followFocus() } catch (e) { logError(e) } } },
+    'refreshTick:': { types: ['void', ['id']], implementation: function (timer) { try { if (panel.isVisible) refresh() } catch (e) { logError(e) } } },
     'quit:': { types: ['void', ['id']], implementation: function (sender) { $.NSApp.terminate(null) } },
   },
 })
@@ -219,7 +228,8 @@ function render(display, now) {
   // Le bord gauche et le haut restent en place quand la largeur change.
   const frame = panel.frame
   const top = frame.origin.y + frame.size.height
-  panel.setFrame($.NSMakeRect(frame.origin.x, top - HEIGHT, width, HEIGHT), true)
+  // setFrame:display: s'écrit setFrameDisplay en JXA (setFrame n'existe pas sur NSWindow).
+  panel.setFrameDisplay($.NSMakeRect(frame.origin.x, top - HEIGHT, width, HEIGHT), true)
   root.setFrame($.NSMakeRect(0, 0, width, HEIGHT))
 }
 
