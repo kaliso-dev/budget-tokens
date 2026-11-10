@@ -77,7 +77,7 @@ début de la journée tombe dans ce trou, la consommation est répartie au prora
 du temps entre la veille et aujourd'hui. Le total du jour est alors précédé de
 `≈`. Le total de la semaine, lui, est toujours exact.
 
-## Overlay sur le bureau (Windows et Linux)
+## Overlay sur le bureau (Windows, macOS et Linux)
 
 La même barre, hors de Claude Code : un petit bandeau posé sur la fenêtre de
 Claude Desktop, affiché seulement quand elle est au premier plan (onglet Chat
@@ -97,6 +97,18 @@ powershell -ExecutionPolicy Bypass -File "$env:USERPROFILE\.claude\plugins\marke
 
 Il se relance à chaque ouverture de session Windows. Pour le retirer :
 `uninstall.ps1`, dans le même dossier.
+
+**macOS** — rien à installer, `osascript` (JavaScript for Automation) et
+AppKit sont fournis avec macOS :
+
+```bash
+sh ~/.claude/plugins/marketplaces/kaliso-dev/overlay/macos/install.sh
+```
+
+Il se relance à chaque ouverture de session (LaunchAgent
+`dev.kaliso.budget-tokens-overlay`). macOS peut signaler qu'« osascript » a
+ajouté un élément en arrière-plan : c'est lui. Pour le retirer :
+`sh ~/.claude/plugins/marketplaces/kaliso-dev/overlay/macos/uninstall.sh`.
 
 **Linux (X11)** — Python 3 avec Tkinter : `sh overlay/linux/install.sh` ; pour
 le retirer, `sh overlay/linux/uninstall.sh`.
